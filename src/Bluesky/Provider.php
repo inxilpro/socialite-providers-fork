@@ -129,13 +129,35 @@ class Provider extends AbstractProvider
 	
 	protected function getOauthIntrospection(string $token): array
 	{
-		$introspection = $this->getHttpClient()->get('https://bsky.social/oauth/introspect', [
+		// See: https://github.com/bluesky-social/atproto/blob/09656d6db548d18da88ff580aab70a848613584f/packages/oauth/oauth-provider/src/oauth-provider.ts#L1281
+		// Also: https://github.com/bluesky-social/atproto/blob/09656d6db548d18da88ff580aab70a848613584f/packages/oauth/oauth-provider/src/client/client.ts#L113
+		// This is the current issue: https://github.com/bluesky-social/atproto/blob/09656d6db548d18da88ff580aab70a848613584f/packages/oauth/oauth-provider/src/oauth-provider.ts#L924
+		
+		// $this->generator ??= new Generator(Key::restore(), $this->getTokenUrl());
+		//
+		// $headers = [
+		// 	'DPoP' => $this->generator->proof(),
+		// ];
+		
+		$options = [
+			RequestOptions::FORM_PARAMS => [
+				'client_id' => $this->clientId,
+				'token' => $token,
+			],
 			RequestOptions::HEADERS => [
+				'Content-Type' => 'application/x-www-form-urlencoded',
 				'Accept' => 'application/json',
 				'Authorization' => 'Bearer '.$token,
 			],
-		]);
+		];
 		
-		return json_decode((string) $introspection->getBody(), true);
+		dump(['options' => $options]);
+		
+		$introspection = $this->getHttpClient()->post('https://bsky.social/oauth/introspect', $options);
+		
+		$body = (string) $introspection->getBody();
+		dump(['body' => $body]);
+		
+		return json_decode($body, true);
 	}
 }
