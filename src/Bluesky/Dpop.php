@@ -34,7 +34,8 @@ class Dpop
 				'kty' => 'EC',
 				'crv' => 'P-256',
 				'x' => static::b64url($keyDetails['ec']['x']),
-				'y' => static::b64url($keyDetails['ec']['y'])
+				'y' => static::b64url($keyDetails['ec']['y']),
+				'use' => 'sig'
 			]
 		];
 		

@@ -23,3 +23,6 @@ Route::get('/auth/bluesky/client-metadata.json', function () {
     'policy_uri' => env('BLUESKY_POLICY_URI'),
 ],
 ```
+
+For testing:
+https://gist.github.com/inxilpro/98a54d1a7af2637acb9cfa349c094678
