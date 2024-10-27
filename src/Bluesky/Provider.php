@@ -2,8 +2,10 @@
 
 namespace SocialiteProviders\Bluesky;
 
+use GuzzleHttp\Exception\RequestException;
 use GuzzleHttp\RequestOptions;
 use Illuminate\Http\Response;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\URL;
 use SocialiteProviders\Manager\OAuth2\AbstractProvider;
@@ -15,10 +17,14 @@ class Provider extends AbstractProvider
 	
 	protected $scopeSeparator = ' ';
 	
+	protected $usesPKCE = true;
+	
 	protected $scopes = [
 		'atproto',
 		'transition:generic',
 	];
+	
+	protected ?string $nonce = null;
 	
 	public function clientMetadata()
 	{
@@ -44,6 +50,44 @@ class Provider extends AbstractProvider
 	protected function getAuthUrl($state)
 	{
 		return $this->buildAuthUrlFromBase('https://bsky.social/oauth/authorize', $state);
+	}
+	
+	public function getAccessTokenResponse($code)
+	{
+		try {
+			return parent::getAccessTokenResponse($code);
+		} catch (RequestException $e) {
+			// FIXME: Do this on `use_dpop_nonce`
+			
+			if (null === $this->nonce) {
+				$this->nonce = Arr::wrap($e->getResponse()->getHeader('DPoP-Nonce'))[0];
+				dump(['saved nonce' => $this->nonce]);
+				return $this->getAccessTokenResponse($code);
+			}
+			
+			throw $e;
+		}
+	}
+	
+	protected function getTokenFields($code)
+	{
+		$fields = parent::getTokenFields($code);
+		
+		dump(['fields' => $fields]);
+		
+		return $fields;
+	}
+	
+	public function getTokenHeaders($code)
+	{
+		$headers = [
+			'DPoP' => Dpop::sign($this->getTokenUrl(), $this->nonce),
+			'Accept' => 'application/json',
+		];
+		
+		dump(['headers' => $headers]);
+		
+		return $headers;
 	}
 	
 	protected function getTokenUrl()

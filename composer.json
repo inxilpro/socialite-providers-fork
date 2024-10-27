@@ -10,8 +10,10 @@
     "require": {
         "php": "^8.0",
         "ext-json": "*",
+        "danielburger1337/oauth2-dpop": "^0.1.0",
         "league/oauth1-client": "^1.9",
-        "socialiteproviders/manager": "^4.4"
+        "socialiteproviders/manager": "^4.4",
+	    "ext-openssl": "*"
     },
     "require-dev": {
         "guzzlehttp/guzzle": "^7.8",
