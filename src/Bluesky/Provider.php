@@ -8,8 +8,11 @@ use Illuminate\Http\Response;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\URL;
+use SocialiteProviders\Bluesky\Proof\Generator;
+use SocialiteProviders\Bluesky\Proof\Key;
 use SocialiteProviders\Manager\OAuth2\AbstractProvider;
 use SocialiteProviders\Manager\OAuth2\User;
+use Throwable;
 
 class Provider extends AbstractProvider
 {
@@ -21,10 +24,10 @@ class Provider extends AbstractProvider
 	
 	protected $scopes = [
 		'atproto',
-		'transition:generic',
+		// 'transition:generic',
 	];
 	
-	protected ?string $nonce = null;
+	protected ?Generator $generator = null;
 	
 	public function clientMetadata()
 	{
@@ -52,40 +55,41 @@ class Provider extends AbstractProvider
 		return $this->buildAuthUrlFromBase('https://bsky.social/oauth/authorize', $state);
 	}
 	
-	public function getAccessTokenResponse($code)
+	public function getAccessTokenResponse($code): array
 	{
+		$this->generator ??= new Generator(Key::restore(), $this->getTokenUrl());
+		
+		$url = $this->getTokenUrl();
+		$options = [
+			RequestOptions::HEADERS => $this->getTokenHeaders($code),
+			RequestOptions::FORM_PARAMS => $this->getTokenFields($code),
+		];
+		
 		try {
-			return parent::getAccessTokenResponse($code);
+			$response = $this->getHttpClient()->post($url, $options);
 		} catch (RequestException $e) {
 			// FIXME: Do this on `use_dpop_nonce`
 			
-			if (null === $this->nonce) {
-				$this->nonce = Arr::wrap($e->getResponse()->getHeader('DPoP-Nonce'))[0];
-				dump(['saved nonce' => $this->nonce]);
-				return $this->getAccessTokenResponse($code);
+			if ($this->generator->hasNonce()) {
+				throw  $e;
 			}
 			
-			throw $e;
+			$nonce = Arr::wrap($e->getResponse()->getHeader('DPoP-Nonce'))[0];
+			$options[RequestOptions::HEADERS]['DPoP'] = $this->generator->withNonce($nonce)->proof();
+			$response = $this->getHttpClient()->post($url, $options);
 		}
-	}
-	
-	protected function getTokenFields($code)
-	{
-		$fields = parent::getTokenFields($code);
 		
-		dump(['fields' => $fields]);
-		
-		return $fields;
+		return json_decode($response->getBody(), true);
 	}
 	
 	public function getTokenHeaders($code)
 	{
+		$this->generator ??= new Generator(Key::restore(), $this->getTokenUrl());
+		
 		$headers = [
-			'DPoP' => Dpop::sign($this->getTokenUrl(), $this->nonce),
+			'DPoP' => $this->generator->proof(),
 			'Accept' => 'application/json',
 		];
-		
-		dump(['headers' => $headers]);
 		
 		return $headers;
 	}
